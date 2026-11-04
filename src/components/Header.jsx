@@ -17,7 +17,7 @@ const Header = () => {
     <a className="btn btn-ghost text-2xl font-extrabold">ClassPilot.</a>
   </div>
   <div className="flex gap-2">
-    <button className="btn btn-error text-white  p-2" onClick={handleLogout}>Logout</button>
+    <button className="btn bg-red-500 text-white  p-2" onClick={handleLogout}>Logout</button>
   </div>
 </div>
   )
