@@ -25,7 +25,7 @@ const StudentAssignment = (props) => {
 
             <div className="flex justify-end mt-2 -mr-7">
 
-            <button className={`btn bg-green-900  ${didSubmit? "btn-disabled": "text-white"}`}>
+            <button className={`btn bg-green-700  ${didSubmit? "btn-disabled": "text-white"}`}>
                     Submit Assignment
             </button>
         </div>
