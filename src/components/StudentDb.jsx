@@ -78,7 +78,7 @@ const StudentDb = () => {
       
       <h1 className='font-bold text-lg m-2 p-2 '>My Progress</h1>
       <p className='text-sm'>{submittedAssignments} out of {totalAssignments} assignments completed </p>
-      <progress className="progress w-56 " value={completionPercentage} max="100"></progress> <p>{completionPercentage}%</p>
+      <progress className="progress w-56 text-green-500" value={completionPercentage} max="100"></progress> <p>{completionPercentage}%</p>
     </div>
       <h1 className='font-bold text-2xl'>My Assignments</h1>
       {
