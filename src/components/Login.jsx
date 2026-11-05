@@ -11,20 +11,22 @@ import { useNavigate } from "react-router";
 
 
 const Login = () => {
-    console.log("login page called");
     const [selectedRole, setselectedRole] = useState(null)
     const [selectedUser, setSelectedUser] = useState("")
     const [selectedUserId, setSelectedUserId] = useState("")
     const dropDownRef = useRef(null)
     const filteredUsers = users.filter(user => user.role == selectedRole)
-    const{setCurrentUserId} = useContext(AuthContext)
+    const{currentUserId, setCurrentUserId} = useContext(AuthContext)
     const navigate = useNavigate()
     
-    
-    
+    // If already logged in, redirect
     useEffect(()=>{
-        console.log(selectedUser)
-    },[selectedUser])
+        if(currentUserId){
+            const user = users.find(u => u.id === currentUserId)
+            if(user?.role === "admin") navigate("/admin")
+            else if(user?.role === "student") navigate("/student")
+        }
+    },[currentUserId, navigate])
     
     const handleLogin = ()=>{
         if (!selectedUserId) {
@@ -32,10 +34,8 @@ const Login = () => {
         return;
         }
 
-        console.log(selectedUserId)
        setCurrentUserId(selectedUserId)
 
-       console.log(selectedUser.role)
        if(selectedUser.role === "admin"){
             navigate("/admin")
        }
@@ -54,8 +54,8 @@ const Login = () => {
 
             <label className="label font-bold text-white">Login As :</label>
             <div className="flex m-2 p-2 text-sm font-semibold justify-center">
-                <CardAdmin isSelected = {selectedRole === "admin"} onselect={()=>setselectedRole("admin")}/>
-                <CardStudent isSelected = {selectedRole === "student"} onselect={()=>setselectedRole("student")}  />
+                <CardAdmin isSelected = {selectedRole === "admin"} onselect={()=>{setselectedRole("admin"); setSelectedUser(""); setSelectedUserId("")}}/>
+                <CardStudent isSelected = {selectedRole === "student"} onselect={()=>{setselectedRole("student"); setSelectedUser(""); setSelectedUserId("")}}  />
             </div>
                 
            <div>
@@ -69,7 +69,7 @@ const Login = () => {
                     <>
                      {
                        !selectedRole ? (<li>Please select a role</li>)  : (filteredUsers.map(user=>(
-                        <li key={user.id} className="m-2 p-2 hover:bg-base-200" onClick={()=>{
+                        <li key={user.id} className="m-2 p-2 hover:bg-base-200 rounded-lg cursor-pointer" onClick={()=>{
                             setSelectedUser(user)
                             setSelectedUserId(user.id)
                             dropDownRef.current.open = false
@@ -79,7 +79,6 @@ const Login = () => {
                     )))
                     
                 }
-                {console.log(filteredUsers)}
                 </>
                 
                 </ul>
