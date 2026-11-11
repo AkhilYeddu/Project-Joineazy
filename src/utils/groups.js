@@ -12,8 +12,14 @@ const groups = [
         courseId: "course2",
         leaderId: "student3",
         members: ["student3", "student4"]
+    },
+    {
+        id: "group3",
+        name: "Team Delta",
+        courseId: "course4",
+        leaderId: "student1",
+        members: ["student1", "student2"]
     }
 ];
 
 export default groups;
-

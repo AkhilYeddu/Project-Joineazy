@@ -92,7 +92,8 @@ const assignments = [
         createdBy: "admin1",
         courseId: "course1",
         submissionType: "group",
-        assignedTo: ["student1", "student2", "student3", "student5"],
+        assignedGroups: ["group1"],
+        assignedTo: ["student1", "student2"],
         submissions: {}
     },
     {
@@ -104,7 +105,8 @@ const assignments = [
         createdBy: "admin2",
         courseId: "course4",
         submissionType: "group",
-        assignedTo: ["student1", "student2", "student3", "student4"],
+        assignedGroups: ["group3"],
+        assignedTo: ["student1", "student2"],
         submissions: {}
     },
     {

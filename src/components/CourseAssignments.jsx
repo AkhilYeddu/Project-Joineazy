@@ -138,6 +138,7 @@ const CourseAssignments = () => {
             driveLink: updatedAssignment.driveLink,
             submissionType: updatedAssignment.submissionType,
             assignedTo: updatedAssignment.assignedTo,
+            assignedGroups: updatedAssignment.assignedGroups || [],
             submissions: newSubmissions
           }
         }

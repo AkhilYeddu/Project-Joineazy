@@ -1,8 +1,12 @@
-import { useState } from 'react'
-import { X, Cloud, User, Users } from 'lucide-react'
+import { useState, useContext } from 'react'
+import { X, Cloud, User, Users, ShieldAlert } from 'lucide-react'
+import { AuthContext } from '../utils/AuthContext'
+import users from '../utils/users'
 
 const AssignmentForm = ({ students, assignment, onSubmit, onCancel }) => {
     const isEditing = !!assignment
+    const { groups, registeredUsers } = useContext(AuthContext)
+    const allUsers = [...users, ...registeredUsers]
 
     // Convert date string to YYYY-MM-DDThh:mm for datetime-local input
     const formatInitialDate = (dateStr) => {
@@ -16,20 +20,52 @@ const AssignmentForm = ({ students, assignment, onSubmit, onCancel }) => {
     const [dueDate, setDueDate] = useState(formatInitialDate(assignment?.dueDate))
     const [driveLink, setDriveLink] = useState(assignment?.driveLink || "")
     const [submissionType, setSubmissionType] = useState(assignment?.submissionType || "individual")
-    const [assignedTo, setAssignedTo] = useState(
-        assignment?.assignedTo || students.map(s => s.id)
-    )
-    const [selectAll, setSelectAll] = useState(
+
+    // Course groups
+    const courseId = assignment?.courseId
+    const courseGroups = groups.filter(g => !courseId || g.courseId === courseId)
+
+    // For group assignments: tracked by group IDs
+    const [assignedGroups, setAssignedGroups] = useState(() => {
+        if (assignment?.assignedGroups && assignment.assignedGroups.length > 0) {
+            return assignment.assignedGroups
+        }
+        if (assignment?.assignedTo && assignment.submissionType === "group") {
+            return courseGroups.filter(g => g.members.some(m => assignment.assignedTo.includes(m))).map(g => g.id)
+        }
+        return courseGroups.map(g => g.id)
+    })
+
+    // For individual assignments: tracked by student IDs
+    const [assignedTo, setAssignedTo] = useState(() => {
+        if (assignment?.assignedTo) {
+            return assignment.assignedTo
+        }
+        return students.map(s => s.id)
+    })
+
+    const [selectAllStudents, setSelectAllStudents] = useState(
         assignment ? assignment.assignedTo?.length === students.length : true
     )
+    const [selectAllGroups, setSelectAllGroups] = useState(
+        assignment ? assignedGroups.length === courseGroups.length : true
+    )
     const [errors, setErrors] = useState({})
+
+    const isGroup = submissionType === "group"
 
     const validate = () => {
         const newErrors = {}
         if (!title.trim()) newErrors.title = "Title is required"
         if (!description.trim()) newErrors.description = "Description is required"
         if (!dueDate) newErrors.dueDate = "Deadline (date and time) is required"
-        if (assignedTo.length === 0) newErrors.assignedTo = "Assign to at least one student"
+
+        if (isGroup) {
+            if (assignedGroups.length === 0) newErrors.assignedGroups = "Assign to at least one group"
+        } else {
+            if (assignedTo.length === 0) newErrors.assignedTo = "Assign to at least one student"
+        }
+
         setErrors(newErrors)
         return Object.keys(newErrors).length === 0
     }
@@ -38,13 +74,24 @@ const AssignmentForm = ({ students, assignment, onSubmit, onCancel }) => {
         e.preventDefault()
         if (!validate()) return
 
+        let finalAssignedTo = assignedTo
+        let finalAssignedGroups = []
+
+        if (isGroup) {
+            finalAssignedGroups = assignedGroups
+            // For group assignments, assignedTo ONLY contains members of the assigned groups
+            const selectedCourseGroups = courseGroups.filter(g => assignedGroups.includes(g.id))
+            finalAssignedTo = [...new Set(selectedCourseGroups.flatMap(g => g.members))]
+        }
+
         const data = {
             title: title.trim(),
             description: description.trim(),
             dueDate,
             driveLink: driveLink.trim(),
             submissionType,
-            assignedTo,
+            assignedTo: finalAssignedTo,
+            assignedGroups: finalAssignedGroups
         }
 
         if (isEditing) {
@@ -54,13 +101,13 @@ const AssignmentForm = ({ students, assignment, onSubmit, onCancel }) => {
         onSubmit(data)
     }
 
-    const handleSelectAll = () => {
-        if (selectAll) {
+    const handleSelectAllStudents = () => {
+        if (selectAllStudents) {
             setAssignedTo([])
-            setSelectAll(false)
+            setSelectAllStudents(false)
         } else {
             setAssignedTo(students.map(s => s.id))
-            setSelectAll(true)
+            setSelectAllStudents(true)
         }
     }
 
@@ -69,7 +116,27 @@ const AssignmentForm = ({ students, assignment, onSubmit, onCancel }) => {
             const updated = prev.includes(studentId)
                 ? prev.filter(id => id !== studentId)
                 : [...prev, studentId]
-            setSelectAll(updated.length === students.length)
+            setSelectAllStudents(updated.length === students.length)
+            return updated
+        })
+    }
+
+    const handleSelectAllGroups = () => {
+        if (selectAllGroups) {
+            setAssignedGroups([])
+            setSelectAllGroups(false)
+        } else {
+            setAssignedGroups(courseGroups.map(g => g.id))
+            setSelectAllGroups(true)
+        }
+    }
+
+    const handleGroupToggle = (groupId) => {
+        setAssignedGroups(prev => {
+            const updated = prev.includes(groupId)
+                ? prev.filter(id => id !== groupId)
+                : [...prev, groupId]
+            setSelectAllGroups(updated.length === courseGroups.length)
             return updated
         })
     }
@@ -78,7 +145,7 @@ const AssignmentForm = ({ students, assignment, onSubmit, onCancel }) => {
         <div className="card bg-base-200 p-6 rounded-xl mb-6 border border-pink-600/30 shadow-lg">
             <div className="flex justify-between items-center mb-4">
                 <div>
-                    <h3 className="font-bold text-lg">
+                    <h3 className="font-bold text-lg text-base-content">
                         {isEditing ? "Edit Assignment" : "Create New Assignment"}
                     </h3>
                     <p className="text-xs text-base-content/60">Fill in all details to assign to students</p>
@@ -128,7 +195,7 @@ const AssignmentForm = ({ students, assignment, onSubmit, onCancel }) => {
                             <button
                                 type="button"
                                 className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-sm font-semibold transition-colors cursor-pointer ${
-                                    submissionType === "individual"
+                                    !isGroup
                                         ? "bg-blue-600 text-white border-blue-500 shadow-sm"
                                         : "bg-base-300 text-base-content/80 border-base-content/10 hover:bg-base-100"
                                 }`}
@@ -140,7 +207,7 @@ const AssignmentForm = ({ students, assignment, onSubmit, onCancel }) => {
                             <button
                                 type="button"
                                 className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-sm font-semibold transition-colors cursor-pointer ${
-                                    submissionType === "group"
+                                    isGroup
                                         ? "bg-purple-600 text-white border-purple-500 shadow-sm"
                                         : "bg-base-300 text-base-content/80 border-base-content/10 hover:bg-base-100"
                                 }`}
@@ -183,41 +250,113 @@ const AssignmentForm = ({ students, assignment, onSubmit, onCancel }) => {
                         />
                     </div>
 
-                    {/* Assign To Students */}
+                    {/* Assign To Section: Groups vs Students */}
                     <div className="form-control sm:col-span-2">
-                        <div className="flex justify-between items-center mb-1">
-                            <label className="label">
-                                <span className="label-text font-semibold">Assign To Students *</span>
-                            </label>
-                            <span className="text-xs text-base-content/60">
-                                {assignedTo.length} of {students.length} selected
-                            </span>
-                        </div>
-                        <div className="bg-base-300 rounded-lg p-3 border border-base-content/10">
-                            <label className="flex items-center gap-2 mb-3 cursor-pointer border-b border-base-content/10 pb-2">
-                                <input 
-                                    type="checkbox"
-                                    className="checkbox checkbox-sm checkbox-primary"
-                                    checked={selectAll}
-                                    onChange={handleSelectAll}
-                                />
-                                <span className="text-sm font-medium">Select All Students in Course</span>
-                            </label>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
-                                {students.map(student => (
-                                    <label key={student.id} className="flex items-center gap-2 cursor-pointer hover:bg-base-200 p-2 rounded-lg transition-colors">
+                        {isGroup ? (
+                            /* Group Selection */
+                            <div>
+                                <div className="flex justify-between items-center mb-1">
+                                    <label className="label">
+                                        <span className="label-text font-semibold text-purple-300 flex items-center gap-1.5">
+                                            <Users size={15}/> Assign To Groups *
+                                        </span>
+                                    </label>
+                                    <span className="text-xs text-base-content/60">
+                                        {assignedGroups.length} of {courseGroups.length} groups selected
+                                    </span>
+                                </div>
+                                <div className="bg-base-300 rounded-lg p-3 border border-purple-500/30">
+                                    {courseGroups.length === 0 ? (
+                                        <div className="flex items-center gap-2 p-3 text-xs text-yellow-300 bg-yellow-950/20 rounded-lg">
+                                            <ShieldAlert size={16} className="shrink-0"/>
+                                            <span>No groups have been created in this course yet. Students can form groups from their dashboard.</span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <label className="flex items-center gap-2 mb-3 cursor-pointer border-b border-base-content/10 pb-2">
+                                                <input 
+                                                    type="checkbox"
+                                                    className="checkbox checkbox-sm checkbox-primary"
+                                                    checked={selectAllGroups}
+                                                    onChange={handleSelectAllGroups}
+                                                />
+                                                <span className="text-sm font-medium">Select All Groups in Course</span>
+                                            </label>
+                                            <div className="space-y-2 max-h-48 overflow-y-auto">
+                                                {courseGroups.map(group => {
+                                                    const leader = allUsers.find(u => u.id === group.leaderId)
+                                                    const memberNames = group.members
+                                                        .map(mid => allUsers.find(u => u.id === mid)?.name || mid)
+                                                        .join(", ")
+
+                                                    return (
+                                                        <label key={group.id} className="flex items-start gap-2.5 cursor-pointer hover:bg-base-200 p-2.5 rounded-lg transition-colors border border-base-content/5">
+                                                            <input 
+                                                                type="checkbox"
+                                                                className="checkbox checkbox-sm checkbox-secondary mt-0.5"
+                                                                checked={assignedGroups.includes(group.id)}
+                                                                onChange={() => handleGroupToggle(group.id)}
+                                                            />
+                                                            <div className="flex-1">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-sm font-bold text-base-content">{group.name}</span>
+                                                                    <span className="badge badge-xs badge-neutral">
+                                                                        {group.members.length} {group.members.length === 1 ? "student" : "students"}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-xs text-base-content/60 mt-0.5">
+                                                                    Leader: <span className="text-purple-300 font-medium">{leader?.name || "Student"}</span> • Members: {memberNames}
+                                                                </p>
+                                                            </div>
+                                                        </label>
+                                                    )
+                                                })}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                                {errors.assignedGroups && <span className="text-red-400 text-xs mt-1">{errors.assignedGroups}</span>}
+                            </div>
+                        ) : (
+                            /* Individual Students Selection */
+                            <div>
+                                <div className="flex justify-between items-center mb-1">
+                                    <label className="label">
+                                        <span className="label-text font-semibold flex items-center gap-1.5">
+                                            <User size={15}/> Assign To Students *
+                                        </span>
+                                    </label>
+                                    <span className="text-xs text-base-content/60">
+                                        {assignedTo.length} of {students.length} selected
+                                    </span>
+                                </div>
+                                <div className="bg-base-300 rounded-lg p-3 border border-base-content/10">
+                                    <label className="flex items-center gap-2 mb-3 cursor-pointer border-b border-base-content/10 pb-2">
                                         <input 
                                             type="checkbox"
-                                            className="checkbox checkbox-sm checkbox-success"
-                                            checked={assignedTo.includes(student.id)}
-                                            onChange={() => handleStudentToggle(student.id)}
+                                            className="checkbox checkbox-sm checkbox-primary"
+                                            checked={selectAllStudents}
+                                            onChange={handleSelectAllStudents}
                                         />
-                                        <span className="text-sm">{student.name}</span>
+                                        <span className="text-sm font-medium">Select All Students in Course</span>
                                     </label>
-                                ))}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                                        {students.map(student => (
+                                            <label key={student.id} className="flex items-center gap-2 cursor-pointer hover:bg-base-200 p-2 rounded-lg transition-colors">
+                                                <input 
+                                                    type="checkbox"
+                                                    className="checkbox checkbox-sm checkbox-success"
+                                                    checked={assignedTo.includes(student.id)}
+                                                    onChange={() => handleStudentToggle(student.id)}
+                                                />
+                                                <span className="text-sm">{student.name}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                                {errors.assignedTo && <span className="text-red-400 text-xs mt-1">{errors.assignedTo}</span>}
                             </div>
-                        </div>
-                        {errors.assignedTo && <span className="text-red-400 text-xs mt-1">{errors.assignedTo}</span>}
+                        )}
                     </div>
                 </div>
 

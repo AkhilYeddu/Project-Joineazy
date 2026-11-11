@@ -33,10 +33,6 @@ const loadInitialAssignments = () => {
         const parsed = JSON.parse(saved)
         if (!Array.isArray(parsed) || parsed.length === 0) return assignmentsData
 
-        // Check if any assignment lacks courseId or submissionType (Round 1 legacy state)
-        const needsRepair = parsed.some(a => !a.courseId || !a.submissionType)
-        if (!needsRepair) return parsed
-
         const courseMap = {
             assignment1: "course1",
             assignment2: "course1",
@@ -56,8 +52,20 @@ const loadInitialAssignments = () => {
             const defaultMatch = assignmentsData.find(d => d.id === a.id)
             const courseId = a.courseId || courseMap[a.id] || defaultMatch?.courseId || "course1"
             const submissionType = a.submissionType || typeMap[a.id] || defaultMatch?.submissionType || "individual"
+            const isGroup = submissionType === "group"
+
             const dueDate = a.dueDate && !a.dueDate.includes("T") ? `${a.dueDate}T23:59` : (a.dueDate || defaultMatch?.dueDate)
             const driveLink = a.driveLink || defaultMatch?.driveLink || ""
+
+            // Group assignments must ONLY assign members of the designated group(s)
+            let assignedGroups = a.assignedGroups || defaultMatch?.assignedGroups || []
+            let assignedTo = a.assignedTo || defaultMatch?.assignedTo || []
+
+            if (isGroup && defaultMatch) {
+                assignedGroups = defaultMatch.assignedGroups || assignedGroups
+                assignedTo = defaultMatch.assignedTo || assignedTo
+            }
+
             return {
                 ...defaultMatch,
                 ...a,
@@ -65,6 +73,8 @@ const loadInitialAssignments = () => {
                 submissionType,
                 dueDate,
                 driveLink,
+                assignedGroups,
+                assignedTo,
                 submissions: a.submissions || defaultMatch?.submissions || {}
             }
         })
@@ -89,7 +99,12 @@ const loadInitialGroups = () => {
         const saved = localStorage.getItem("groups")
         if (!saved) return groupsData
         const parsed = JSON.parse(saved)
-        return Array.isArray(parsed) && parsed.length > 0 ? parsed : groupsData
+        if (!Array.isArray(parsed) || parsed.length === 0) return groupsData
+        // Ensure group3 in course4 exists
+        if (!parsed.some(g => g.id === "group3")) {
+            return groupsData
+        }
+        return parsed
     } catch {
         return groupsData
     }

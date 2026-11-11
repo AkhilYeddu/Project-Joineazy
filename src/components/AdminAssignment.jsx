@@ -1,4 +1,4 @@
-import { Calendar, Edit, ExternalLink, Trash2, ChevronDown, ChevronUp, User, Users, Cloud, AlertCircle } from 'lucide-react'
+import { Calendar, Edit, ExternalLink, Trash2, ChevronDown, ChevronUp, User, Users, Cloud } from 'lucide-react'
 import { useState, useContext } from 'react'
 import { AuthContext } from '../utils/AuthContext'
 import users from '../utils/users'
@@ -13,6 +13,7 @@ const AdminAssignment = ({ assignment, onEdit, onDelete }) => {
         id, 
         driveLink, 
         assignedTo = [], 
+        assignedGroups = [],
         submissions = {},
         submissionType = "individual",
         courseId 
@@ -21,27 +22,41 @@ const AdminAssignment = ({ assignment, onEdit, onDelete }) => {
     const allUsers = [...users, ...registeredUsers]
     const isGroup = submissionType === "group"
 
-    // Resolve assigned students
-    const assignedStudents = allUsers.filter(u => assignedTo?.includes(u.id))
-
-    // Group calculation
+    // Course groups
     const courseGroups = groups.filter(g => g.courseId === courseId)
-    const submittedGroupsCount = courseGroups.filter(
+
+    // For group assignments: ONLY resolve groups assigned to this assignment
+    const targetGroups = isGroup 
+        ? courseGroups.filter(g => {
+            if (assignedGroups && assignedGroups.length > 0) {
+                return assignedGroups.includes(g.id)
+            }
+            // Fallback: groups that have assigned members
+            return g.members.some(m => assignedTo?.includes(m))
+        })
+        : []
+
+    // For group assignments: ONLY resolve members who belong to the assigned groups
+    const targetGroupMemberIds = new Set(targetGroups.flatMap(g => g.members))
+
+    // Resolved students to display
+    const displayStudents = isGroup
+        ? allUsers.filter(u => targetGroupMemberIds.has(u.id))
+        : allUsers.filter(u => assignedTo?.includes(u.id))
+
+    // Group completion calculation
+    const submittedGroupsCount = targetGroups.filter(
         g => submissions[g.id]?.status === "submitted" || submissions[g.leaderId]?.status === "submitted"
     ).length
-    const totalGroups = courseGroups.length
+    const totalGroups = targetGroups.length
     const groupCompletionRate = totalGroups === 0 ? 0 : Math.round((submittedGroupsCount / totalGroups) * 100)
 
-    // For group assignments: check which assigned students are in a group vs unassigned
-    const assignedStudentIdsInGroups = new Set(courseGroups.flatMap(g => g.members || []))
-    const assignedStudentsWithoutGroup = assignedStudents.filter(s => !assignedStudentIdsInGroups.has(s.id))
-
     // Individual calculation
-    const submittedCount = assignedStudents.filter(
+    const submittedCount = displayStudents.filter(
         s => submissions[s.id]?.status === "submitted"
     ).length
-    const totalAssigned = assignedStudents.length
-    const completionRate = totalAssigned === 0 ? 0 : Math.round((submittedCount / totalAssigned) * 100)
+    const totalAssigned = displayStudents.length
+    const individualCompletionRate = totalAssigned === 0 ? 0 : Math.round((submittedCount / totalAssigned) * 100)
 
     // Overdue calculation
     const isOverdue = dueDate ? new Date(dueDate) < new Date() : false
@@ -60,7 +75,7 @@ const AdminAssignment = ({ assignment, onEdit, onDelete }) => {
     }
 
     const deleteModalId = `delete-modal-${id}`
-    const activeCompletionRate = isGroup ? groupCompletionRate : completionRate
+    const activeCompletionRate = isGroup ? groupCompletionRate : individualCompletionRate
 
     return (
         <div className={`card card-border bg-base-300 mb-4 p-4 w-full shadow-sm hover:border-pink-600/40 transition-all ${isOverdue ? "border-red-500/50" : "border-base-content/10"}`}>
@@ -104,37 +119,67 @@ const AdminAssignment = ({ assignment, onEdit, onDelete }) => {
                             )}
                         </div>
 
-                        {/* Assigned Students Pills */}
+                        {/* Assigned Groups & Students Section */}
                         <div className="mt-3.5 pt-3 border-t border-base-content/10">
-                            <div className="flex flex-wrap items-center gap-1.5">
-                                <span className="text-xs font-semibold text-base-content/80 flex items-center gap-1 mr-1">
-                                    <Users size={13} className={isGroup ? "text-purple-400" : "text-blue-400"}/>
-                                    <span>Assigned Students ({assignedStudents.length}):</span>
-                                </span>
-                                {assignedStudents.length === 0 ? (
-                                    <span className="text-xs text-base-content/40 italic">None assigned</span>
-                                ) : (
-                                    assignedStudents.map(student => {
-                                        const isInGroup = isGroup && assignedStudentIdsInGroups.has(student.id)
-                                        return (
+                            {isGroup ? (
+                                <div className="space-y-2">
+                                    {/* Assigned Teams */}
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                        <span className="text-xs font-semibold text-purple-300 flex items-center gap-1 mr-1">
+                                            <Users size={13}/>
+                                            <span>Assigned Teams ({targetGroups.length}):</span>
+                                        </span>
+                                        {targetGroups.length === 0 ? (
+                                            <span className="text-xs text-base-content/40 italic">No groups assigned</span>
+                                        ) : (
+                                            targetGroups.map(g => (
+                                                <span key={g.id} className="badge badge-sm bg-purple-950/60 text-purple-300 border-purple-500/40 font-semibold py-2 px-2.5">
+                                                    {g.name} ({g.members.length} members)
+                                                </span>
+                                            ))
+                                        )}
+                                    </div>
+
+                                    {/* Assigned Students In Those Groups */}
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                        <span className="text-xs font-semibold text-base-content/80 flex items-center gap-1 mr-1">
+                                            <User size={13} className="text-purple-400"/>
+                                            <span>Group Members ({displayStudents.length}):</span>
+                                        </span>
+                                        {displayStudents.length === 0 ? (
+                                            <span className="text-xs text-base-content/40 italic">None assigned</span>
+                                        ) : (
+                                            displayStudents.map(student => (
+                                                <span 
+                                                    key={student.id} 
+                                                    className="badge badge-sm py-2 px-2.5 text-xs font-medium bg-purple-950/40 text-purple-300 border-purple-500/30"
+                                                >
+                                                    {student.name}
+                                                </span>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className="text-xs font-semibold text-base-content/80 flex items-center gap-1 mr-1">
+                                        <User size={13} className="text-blue-400"/>
+                                        <span>Assigned Students ({displayStudents.length}):</span>
+                                    </span>
+                                    {displayStudents.length === 0 ? (
+                                        <span className="text-xs text-base-content/40 italic">None assigned</span>
+                                    ) : (
+                                        displayStudents.map(student => (
                                             <span 
                                                 key={student.id} 
-                                                className={`badge badge-sm py-2 px-2.5 text-xs font-medium ${
-                                                    isGroup 
-                                                        ? isInGroup 
-                                                            ? "bg-purple-950/40 text-purple-300 border-purple-500/30"
-                                                            : "bg-yellow-950/40 text-yellow-300 border-yellow-500/30"
-                                                        : "bg-base-200 text-base-content/80 border-base-content/10"
-                                                }`}
-                                                title={isGroup ? (isInGroup ? "Enrolled in a group" : "Not part of any group yet") : ""}
+                                                className="badge badge-sm py-2 px-2.5 text-xs font-medium bg-base-200 text-base-content/80 border-base-content/10"
                                             >
                                                 {student.name}
-                                                {isGroup && !isInGroup && " (No team)"}
                                             </span>
-                                        )
-                                    })
-                                )}
-                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -159,8 +204,8 @@ const AdminAssignment = ({ assignment, onEdit, onDelete }) => {
                     <div className="flex justify-between items-center mb-1.5">
                         <span className="text-xs sm:text-sm font-medium text-base-content/70">
                             {isGroup 
-                                ? `Group Completion: ${submittedGroupsCount} of ${totalGroups} groups submitted` 
-                                : `Class Completion: ${submittedCount} of ${totalAssigned} students submitted`
+                                ? `Team Progress: ${submittedGroupsCount} of ${totalGroups} assigned groups submitted` 
+                                : `Class Progress: ${submittedCount} of ${totalAssigned} assigned students submitted`
                             }
                         </span>
                         <span className="text-xs sm:text-sm font-bold text-base-content">{activeCompletionRate}%</span>
@@ -179,126 +224,113 @@ const AdminAssignment = ({ assignment, onEdit, onDelete }) => {
                 >
                     {showDetails ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
                     <span>
-                        {showDetails ? "Hide" : "Drill-down"} Submission Details ({isGroup ? `${totalGroups} groups, ${assignedStudents.length} students` : `${totalAssigned} students`})
+                        {showDetails ? "Hide" : "Drill-down"} Submission Details ({isGroup ? `${totalGroups} groups, ${displayStudents.length} students` : `${totalAssigned} students`})
                     </span>
                 </button>
 
                 {/* Drill-down List */}
                 {showDetails && (
-                    <div className="mt-3">
-                        {/* Notice for unassigned group students */}
-                        {isGroup && assignedStudentsWithoutGroup.length > 0 && (
-                            <div className="alert bg-yellow-950/30 border border-yellow-500/30 p-2.5 rounded-xl mb-3 flex items-center gap-2 text-xs text-yellow-300">
-                                <AlertCircle size={15} className="shrink-0 text-yellow-400"/>
-                                <span>
-                                    <strong>{assignedStudentsWithoutGroup.length} assigned {assignedStudentsWithoutGroup.length === 1 ? "student has" : "students have"} not joined a group yet:</strong>{" "}
-                                    {assignedStudentsWithoutGroup.map(s => s.name).join(", ")}
-                                </span>
-                            </div>
+                    <div className="mt-3 overflow-x-auto rounded-xl border border-base-content/10">
+                        {isGroup ? (
+                            /* Group Drill-down */
+                            <table className="table table-sm bg-base-200 w-full">
+                                <thead>
+                                    <tr className="border-b border-base-content/10 text-base-content/70">
+                                        <th>Assigned Group</th>
+                                        <th>Leader</th>
+                                        <th>Members</th>
+                                        <th>Status</th>
+                                        <th>Submitted At</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {targetGroups.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={5} className="text-center text-base-content/40 py-4">
+                                                No groups assigned to this project
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        targetGroups.map(group => {
+                                            const sub = submissions[group.id] || submissions[group.leaderId]
+                                            const isSubmitted = sub?.status === "submitted"
+                                            const leader = allUsers.find(s => s.id === group.leaderId)
+                                            const memberNames = group.members
+                                                .map(mid => allUsers.find(s => s.id === mid)?.name || mid)
+                                                .join(", ")
+
+                                            return (
+                                                <tr key={group.id} className="border-b border-base-content/5 hover:bg-base-300/50">
+                                                    <td className="font-semibold text-base-content">{group.name}</td>
+                                                    <td className="text-sm font-medium text-purple-300">
+                                                        {leader?.name || "Assigned Leader"}
+                                                    </td>
+                                                    <td className="text-xs text-base-content/60 max-w-xs truncate" title={memberNames}>
+                                                        {memberNames}
+                                                    </td>
+                                                    <td>
+                                                        <span className={`badge badge-sm font-semibold ${
+                                                            isSubmitted ? "bg-green-800/40 text-green-400 border-green-600/30" : "bg-yellow-800/40 text-yellow-400 border-yellow-600/30"
+                                                        }`}>
+                                                            {isSubmitted ? "Submitted" : "Not Submitted"}
+                                                        </span>
+                                                    </td>
+                                                    <td className="text-xs text-base-content/60">
+                                                        {isSubmitted && sub?.submittedAt 
+                                                            ? new Date(sub.submittedAt).toLocaleString() 
+                                                            : "—"
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        ) : (
+                            /* Individual Drill-down */
+                            <table className="table table-sm bg-base-200 w-full">
+                                <thead>
+                                    <tr className="border-b border-base-content/10 text-base-content/70">
+                                        <th>Student</th>
+                                        <th>Status</th>
+                                        <th>Submitted At</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {displayStudents.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={3} className="text-center text-base-content/40 py-4">
+                                                No students assigned
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        displayStudents.map(student => {
+                                            const sub = submissions[student.id]
+                                            const isSubmitted = sub?.status === "submitted"
+                                            return (
+                                                <tr key={student.id} className="border-b border-base-content/5 hover:bg-base-300/50">
+                                                    <td className="font-medium text-base-content">{student.name}</td>
+                                                    <td>
+                                                        <span className={`badge badge-sm font-semibold ${
+                                                            isSubmitted ? "bg-green-800/40 text-green-400 border-green-600/30" : "bg-yellow-800/40 text-yellow-400 border-yellow-600/30"
+                                                        }`}>
+                                                            {isSubmitted ? "Submitted" : "Not Submitted"}
+                                                        </span>
+                                                    </td>
+                                                    <td className="text-xs text-base-content/60">
+                                                        {isSubmitted && sub?.submittedAt 
+                                                            ? new Date(sub.submittedAt).toLocaleString() 
+                                                            : "—"
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
                         )}
-
-                        <div className="overflow-x-auto rounded-xl border border-base-content/10">
-                            {isGroup ? (
-                                /* Group Drill-down */
-                                <table className="table table-sm bg-base-200 w-full">
-                                    <thead>
-                                        <tr className="border-b border-base-content/10 text-base-content/70">
-                                            <th>Group Name</th>
-                                            <th>Leader</th>
-                                            <th>Members</th>
-                                            <th>Status</th>
-                                            <th>Submitted At</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {courseGroups.length === 0 ? (
-                                            <tr>
-                                                <td colSpan={5} className="text-center text-base-content/40 py-4">
-                                                    No groups formed in this course yet
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            courseGroups.map(group => {
-                                                const sub = submissions[group.id] || submissions[group.leaderId]
-                                                const isSubmitted = sub?.status === "submitted"
-                                                const leader = allUsers.find(s => s.id === group.leaderId)
-                                                const memberNames = group.members
-                                                    .map(mid => allUsers.find(s => s.id === mid)?.name || mid)
-                                                    .join(", ")
-
-                                                return (
-                                                    <tr key={group.id} className="border-b border-base-content/5 hover:bg-base-300/50">
-                                                        <td className="font-semibold text-base-content">{group.name}</td>
-                                                        <td className="text-sm font-medium text-purple-300">
-                                                            {leader?.name || "Assigned Leader"}
-                                                        </td>
-                                                        <td className="text-xs text-base-content/60 max-w-xs truncate" title={memberNames}>
-                                                            {memberNames}
-                                                        </td>
-                                                        <td>
-                                                            <span className={`badge badge-sm font-semibold ${
-                                                                isSubmitted ? "bg-green-800/40 text-green-400 border-green-600/30" : "bg-yellow-800/40 text-yellow-400 border-yellow-600/30"
-                                                            }`}>
-                                                                {isSubmitted ? "Submitted" : "Not Submitted"}
-                                                            </span>
-                                                        </td>
-                                                        <td className="text-xs text-base-content/60">
-                                                            {isSubmitted && sub?.submittedAt 
-                                                                ? new Date(sub.submittedAt).toLocaleString() 
-                                                                : "—"
-                                                            }
-                                                        </td>
-                                                    </tr>
-                                                )
-                                            })
-                                        )}
-                                    </tbody>
-                                </table>
-                            ) : (
-                                /* Individual Drill-down */
-                                <table className="table table-sm bg-base-200 w-full">
-                                    <thead>
-                                        <tr className="border-b border-base-content/10 text-base-content/70">
-                                            <th>Student</th>
-                                            <th>Status</th>
-                                            <th>Submitted At</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {assignedStudents.length === 0 ? (
-                                            <tr>
-                                                <td colSpan={3} className="text-center text-base-content/40 py-4">
-                                                    No students assigned
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            assignedStudents.map(student => {
-                                                const sub = submissions[student.id]
-                                                const isSubmitted = sub?.status === "submitted"
-                                                return (
-                                                    <tr key={student.id} className="border-b border-base-content/5 hover:bg-base-300/50">
-                                                        <td className="font-medium text-base-content">{student.name}</td>
-                                                        <td>
-                                                            <span className={`badge badge-sm font-semibold ${
-                                                                isSubmitted ? "bg-green-800/40 text-green-400 border-green-600/30" : "bg-yellow-800/40 text-yellow-400 border-yellow-600/30"
-                                                            }`}>
-                                                                {isSubmitted ? "Submitted" : "Not Submitted"}
-                                                            </span>
-                                                        </td>
-                                                        <td className="text-xs text-base-content/60">
-                                                            {isSubmitted && sub?.submittedAt 
-                                                                ? new Date(sub.submittedAt).toLocaleString() 
-                                                                : "—"
-                                                            }
-                                                        </td>
-                                                    </tr>
-                                                )
-                                            })
-                                        )}
-                                    </tbody>
-                                </table>
-                            )}
-                        </div>
                     </div>
                 )}
             </div>
