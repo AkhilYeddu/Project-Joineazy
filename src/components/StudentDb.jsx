@@ -1,7 +1,7 @@
 import { useContext } from 'react'
 import { AuthContext } from '../utils/AuthContext'
 import users from "../utils/users"
-import { BookOpen, GraduationCap, CircleCheck, ChartNoAxesColumnDecreasing, Users, ArrowRight } from 'lucide-react'
+import { BookOpen, GraduationCap, CircleCheck, ChartNoAxesColumnDecreasing, ArrowRight } from 'lucide-react'
 import { useNavigate } from 'react-router'
 
 const StudentDb = () => {
@@ -32,7 +32,6 @@ const StudentDb = () => {
     const submittedAssignments = myAssignments.filter(
       a => a.submissions?.[currentUserId]?.status === "submitted"
     ).length
-    const pendingAssignments = totalAssignments - submittedAssignments
     const completionPercentage = totalAssignments === 0
       ? 0
       : Math.round((submittedAssignments / totalAssignments) * 100)

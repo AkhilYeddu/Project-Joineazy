@@ -54,8 +54,6 @@ const AdminAssignment = ({ assignment, students, onEdit, onDelete }) => {
     const deleteModalId = `delete-modal-${id}`
 
     const activeCompletionRate = isGroup ? groupCompletionRate : completionRate
-    const activeSubmitted = isGroup ? submittedGroupsCount : submittedCount
-    const activeTotal = isGroup ? totalGroups : totalAssigned
 
     return (
         <div className={`card card-border bg-base-300 mb-4 p-4 w-full shadow-sm hover:border-pink-600/40 transition-all ${isOverdue ? "border-red-500/50" : "border-base-content/10"}`}>

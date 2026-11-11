@@ -1,7 +1,7 @@
 import { Outlet, useNavigate, useLocation } from "react-router"
 import Header from "./Header"
 import Footer from "./Footer"
-import { useContext, useEffect } from "react"
+import { useContext, useEffect, useMemo } from "react"
 import { AuthContext } from "../utils/AuthContext"
 import users from "../utils/users"
 
@@ -10,7 +10,7 @@ export const Body = () => {
     const navigate = useNavigate()
     const location = useLocation()
 
-    const allUsers = [...users, ...registeredUsers]
+    const allUsers = useMemo(() => [...users, ...registeredUsers], [registeredUsers])
     const isAuthPage = location.pathname === "/login" || location.pathname === "/register"
 
     useEffect(()=>{
@@ -21,7 +21,7 @@ export const Body = () => {
             if(user?.role === "admin") navigate("/admin")
             else if(user?.role === "student") navigate("/student")
         }
-    },[currentUserId, navigate, location.pathname])
+    },[currentUserId, navigate, location.pathname, isAuthPage, allUsers])
    
   return (
     <div className="min-h-screen flex flex-col">   

@@ -1,7 +1,7 @@
 import { useContext, useState } from 'react'
 import { AuthContext } from '../utils/AuthContext'
 import users from "../utils/users"
-import { BookOpen, ChartNoAxesColumnDecreasing, CircleCheck, Clock, Plus, Search, ArrowLeft, ArrowUpDown } from 'lucide-react'
+import { BookOpen, ChartNoAxesColumnDecreasing, CircleCheck, Clock, Plus, Search, ArrowLeft } from 'lucide-react'
 import AdminAssignment from './AdminAssignment'
 import AssignmentForm from './AssignmentForm'
 import { useParams, useNavigate } from 'react-router'
