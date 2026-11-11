@@ -1,9 +1,10 @@
-import { Calendar, Edit, ExternalLink, Trash2, ChevronDown, ChevronUp, User, Users, Cloud } from 'lucide-react'
+import { Calendar, Edit, ExternalLink, Trash2, ChevronDown, ChevronUp, User, Users, Cloud, AlertCircle } from 'lucide-react'
 import { useState, useContext } from 'react'
 import { AuthContext } from '../utils/AuthContext'
+import users from '../utils/users'
 
-const AdminAssignment = ({ assignment, students, onEdit, onDelete }) => {
-    const { groups } = useContext(AuthContext)
+const AdminAssignment = ({ assignment, onEdit, onDelete }) => {
+    const { groups, registeredUsers } = useContext(AuthContext)
     const [showDetails, setShowDetails] = useState(false)
     const { 
         title, 
@@ -17,7 +18,11 @@ const AdminAssignment = ({ assignment, students, onEdit, onDelete }) => {
         courseId 
     } = assignment
 
+    const allUsers = [...users, ...registeredUsers]
     const isGroup = submissionType === "group"
+
+    // Resolve assigned students
+    const assignedStudents = allUsers.filter(u => assignedTo?.includes(u.id))
 
     // Group calculation
     const courseGroups = groups.filter(g => g.courseId === courseId)
@@ -27,8 +32,11 @@ const AdminAssignment = ({ assignment, students, onEdit, onDelete }) => {
     const totalGroups = courseGroups.length
     const groupCompletionRate = totalGroups === 0 ? 0 : Math.round((submittedGroupsCount / totalGroups) * 100)
 
+    // For group assignments: check which assigned students are in a group vs unassigned
+    const assignedStudentIdsInGroups = new Set(courseGroups.flatMap(g => g.members || []))
+    const assignedStudentsWithoutGroup = assignedStudents.filter(s => !assignedStudentIdsInGroups.has(s.id))
+
     // Individual calculation
-    const assignedStudents = students.filter(s => assignedTo?.includes(s.id))
     const submittedCount = assignedStudents.filter(
         s => submissions[s.id]?.status === "submitted"
     ).length
@@ -52,7 +60,6 @@ const AdminAssignment = ({ assignment, students, onEdit, onDelete }) => {
     }
 
     const deleteModalId = `delete-modal-${id}`
-
     const activeCompletionRate = isGroup ? groupCompletionRate : completionRate
 
     return (
@@ -95,6 +102,39 @@ const AdminAssignment = ({ assignment, students, onEdit, onDelete }) => {
                                     <ExternalLink size={12}/>
                                 </a>
                             )}
+                        </div>
+
+                        {/* Assigned Students Pills */}
+                        <div className="mt-3.5 pt-3 border-t border-base-content/10">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-xs font-semibold text-base-content/80 flex items-center gap-1 mr-1">
+                                    <Users size={13} className={isGroup ? "text-purple-400" : "text-blue-400"}/>
+                                    <span>Assigned Students ({assignedStudents.length}):</span>
+                                </span>
+                                {assignedStudents.length === 0 ? (
+                                    <span className="text-xs text-base-content/40 italic">None assigned</span>
+                                ) : (
+                                    assignedStudents.map(student => {
+                                        const isInGroup = isGroup && assignedStudentIdsInGroups.has(student.id)
+                                        return (
+                                            <span 
+                                                key={student.id} 
+                                                className={`badge badge-sm py-2 px-2.5 text-xs font-medium ${
+                                                    isGroup 
+                                                        ? isInGroup 
+                                                            ? "bg-purple-950/40 text-purple-300 border-purple-500/30"
+                                                            : "bg-yellow-950/40 text-yellow-300 border-yellow-500/30"
+                                                        : "bg-base-200 text-base-content/80 border-base-content/10"
+                                                }`}
+                                                title={isGroup ? (isInGroup ? "Enrolled in a group" : "Not part of any group yet") : ""}
+                                            >
+                                                {student.name}
+                                                {isGroup && !isInGroup && " (No team)"}
+                                            </span>
+                                        )
+                                    })
+                                )}
+                            </div>
                         </div>
                     </div>
 
@@ -139,113 +179,126 @@ const AdminAssignment = ({ assignment, students, onEdit, onDelete }) => {
                 >
                     {showDetails ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
                     <span>
-                        {showDetails ? "Hide" : "Drill-down"} Submission Details ({isGroup ? `${totalGroups} groups` : `${totalAssigned} students`})
+                        {showDetails ? "Hide" : "Drill-down"} Submission Details ({isGroup ? `${totalGroups} groups, ${assignedStudents.length} students` : `${totalAssigned} students`})
                     </span>
                 </button>
 
                 {/* Drill-down List */}
                 {showDetails && (
-                    <div className="mt-3 overflow-x-auto rounded-xl border border-base-content/10">
-                        {isGroup ? (
-                            /* Group Drill-down */
-                            <table className="table table-sm bg-base-200 w-full">
-                                <thead>
-                                    <tr className="border-b border-base-content/10 text-base-content/70">
-                                        <th>Group Name</th>
-                                        <th>Leader</th>
-                                        <th>Members</th>
-                                        <th>Status</th>
-                                        <th>Submitted At</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {courseGroups.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={5} className="text-center text-base-content/40 py-4">
-                                                No groups formed in this course yet
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        courseGroups.map(group => {
-                                            const sub = submissions[group.id] || submissions[group.leaderId]
-                                            const isSubmitted = sub?.status === "submitted"
-                                            const leader = students.find(s => s.id === group.leaderId)
-                                            const memberNames = group.members
-                                                .map(mid => students.find(s => s.id === mid)?.name || mid)
-                                                .join(", ")
-
-                                            return (
-                                                <tr key={group.id} className="border-b border-base-content/5 hover:bg-base-300/50">
-                                                    <td className="font-semibold text-base-content">{group.name}</td>
-                                                    <td className="text-sm font-medium text-purple-300">
-                                                        {leader?.name || "Assigned Leader"}
-                                                    </td>
-                                                    <td className="text-xs text-base-content/60 max-w-xs truncate" title={memberNames}>
-                                                        {memberNames}
-                                                    </td>
-                                                    <td>
-                                                        <span className={`badge badge-sm font-semibold ${
-                                                            isSubmitted ? "bg-green-800/40 text-green-400 border-green-600/30" : "bg-yellow-800/40 text-yellow-400 border-yellow-600/30"
-                                                        }`}>
-                                                            {isSubmitted ? "Submitted" : "Not Submitted"}
-                                                        </span>
-                                                    </td>
-                                                    <td className="text-xs text-base-content/60">
-                                                        {isSubmitted && sub?.submittedAt 
-                                                            ? new Date(sub.submittedAt).toLocaleString() 
-                                                            : "—"
-                                                        }
-                                                    </td>
-                                                </tr>
-                                            )
-                                        })
-                                    )}
-                                </tbody>
-                            </table>
-                        ) : (
-                            /* Individual Drill-down */
-                            <table className="table table-sm bg-base-200 w-full">
-                                <thead>
-                                    <tr className="border-b border-base-content/10 text-base-content/70">
-                                        <th>Student</th>
-                                        <th>Status</th>
-                                        <th>Submitted At</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {assignedStudents.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={3} className="text-center text-base-content/40 py-4">
-                                                No students assigned
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        assignedStudents.map(student => {
-                                            const sub = submissions[student.id]
-                                            const isSubmitted = sub?.status === "submitted"
-                                            return (
-                                                <tr key={student.id} className="border-b border-base-content/5 hover:bg-base-300/50">
-                                                    <td className="font-medium text-base-content">{student.name}</td>
-                                                    <td>
-                                                        <span className={`badge badge-sm font-semibold ${
-                                                            isSubmitted ? "bg-green-800/40 text-green-400 border-green-600/30" : "bg-yellow-800/40 text-yellow-400 border-yellow-600/30"
-                                                        }`}>
-                                                            {isSubmitted ? "Submitted" : "Not Submitted"}
-                                                        </span>
-                                                    </td>
-                                                    <td className="text-xs text-base-content/60">
-                                                        {isSubmitted && sub?.submittedAt 
-                                                            ? new Date(sub.submittedAt).toLocaleString() 
-                                                            : "—"
-                                                        }
-                                                    </td>
-                                                </tr>
-                                            )
-                                        })
-                                    )}
-                                </tbody>
-                            </table>
+                    <div className="mt-3">
+                        {/* Notice for unassigned group students */}
+                        {isGroup && assignedStudentsWithoutGroup.length > 0 && (
+                            <div className="alert bg-yellow-950/30 border border-yellow-500/30 p-2.5 rounded-xl mb-3 flex items-center gap-2 text-xs text-yellow-300">
+                                <AlertCircle size={15} className="shrink-0 text-yellow-400"/>
+                                <span>
+                                    <strong>{assignedStudentsWithoutGroup.length} assigned {assignedStudentsWithoutGroup.length === 1 ? "student has" : "students have"} not joined a group yet:</strong>{" "}
+                                    {assignedStudentsWithoutGroup.map(s => s.name).join(", ")}
+                                </span>
+                            </div>
                         )}
+
+                        <div className="overflow-x-auto rounded-xl border border-base-content/10">
+                            {isGroup ? (
+                                /* Group Drill-down */
+                                <table className="table table-sm bg-base-200 w-full">
+                                    <thead>
+                                        <tr className="border-b border-base-content/10 text-base-content/70">
+                                            <th>Group Name</th>
+                                            <th>Leader</th>
+                                            <th>Members</th>
+                                            <th>Status</th>
+                                            <th>Submitted At</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {courseGroups.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={5} className="text-center text-base-content/40 py-4">
+                                                    No groups formed in this course yet
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            courseGroups.map(group => {
+                                                const sub = submissions[group.id] || submissions[group.leaderId]
+                                                const isSubmitted = sub?.status === "submitted"
+                                                const leader = allUsers.find(s => s.id === group.leaderId)
+                                                const memberNames = group.members
+                                                    .map(mid => allUsers.find(s => s.id === mid)?.name || mid)
+                                                    .join(", ")
+
+                                                return (
+                                                    <tr key={group.id} className="border-b border-base-content/5 hover:bg-base-300/50">
+                                                        <td className="font-semibold text-base-content">{group.name}</td>
+                                                        <td className="text-sm font-medium text-purple-300">
+                                                            {leader?.name || "Assigned Leader"}
+                                                        </td>
+                                                        <td className="text-xs text-base-content/60 max-w-xs truncate" title={memberNames}>
+                                                            {memberNames}
+                                                        </td>
+                                                        <td>
+                                                            <span className={`badge badge-sm font-semibold ${
+                                                                isSubmitted ? "bg-green-800/40 text-green-400 border-green-600/30" : "bg-yellow-800/40 text-yellow-400 border-yellow-600/30"
+                                                            }`}>
+                                                                {isSubmitted ? "Submitted" : "Not Submitted"}
+                                                            </span>
+                                                        </td>
+                                                        <td className="text-xs text-base-content/60">
+                                                            {isSubmitted && sub?.submittedAt 
+                                                                ? new Date(sub.submittedAt).toLocaleString() 
+                                                                : "—"
+                                                            }
+                                                        </td>
+                                                    </tr>
+                                                )
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            ) : (
+                                /* Individual Drill-down */
+                                <table className="table table-sm bg-base-200 w-full">
+                                    <thead>
+                                        <tr className="border-b border-base-content/10 text-base-content/70">
+                                            <th>Student</th>
+                                            <th>Status</th>
+                                            <th>Submitted At</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {assignedStudents.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={3} className="text-center text-base-content/40 py-4">
+                                                    No students assigned
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            assignedStudents.map(student => {
+                                                const sub = submissions[student.id]
+                                                const isSubmitted = sub?.status === "submitted"
+                                                return (
+                                                    <tr key={student.id} className="border-b border-base-content/5 hover:bg-base-300/50">
+                                                        <td className="font-medium text-base-content">{student.name}</td>
+                                                        <td>
+                                                            <span className={`badge badge-sm font-semibold ${
+                                                                isSubmitted ? "bg-green-800/40 text-green-400 border-green-600/30" : "bg-yellow-800/40 text-yellow-400 border-yellow-600/30"
+                                                            }`}>
+                                                                {isSubmitted ? "Submitted" : "Not Submitted"}
+                                                            </span>
+                                                        </td>
+                                                        <td className="text-xs text-base-content/60">
+                                                            {isSubmitted && sub?.submittedAt 
+                                                                ? new Date(sub.submittedAt).toLocaleString() 
+                                                                : "—"
+                                                            }
+                                                        </td>
+                                                    </tr>
+                                                )
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>
