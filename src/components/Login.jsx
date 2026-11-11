@@ -3,17 +3,20 @@ import { AuthContext } from "../utils/AuthContext"
 import { useNavigate, Link } from "react-router"
 import users from "../utils/users"
 import toast from "react-hot-toast"
-import { Eye, EyeOff, Mail, Lock } from "lucide-react"
+import { Eye, EyeOff, Mail, Lock, GraduationCap, Users, ArrowRight } from "lucide-react"
 
 const Login = () => {
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
     const [showPassword, setShowPassword] = useState(false)
     const [errors, setErrors] = useState({})
+    const [demoTab, setDemoTab] = useState("admin")
     const { login, registeredUsers } = useContext(AuthContext)
     const navigate = useNavigate()
 
     const allUsers = [...users, ...registeredUsers]
+    const admins = allUsers.filter(u => u.role === "admin")
+    const students = allUsers.filter(u => u.role === "student")
 
     const validate = () => {
         const newErrors = {}
@@ -45,9 +48,9 @@ const Login = () => {
     }
 
     return (
-        <div className="flex justify-center items-center min-h-[80vh] p-4">
-            <div className="card bg-base-200 border border-base-300 rounded-xl w-full max-w-sm p-6">
-                <h2 className="text-2xl font-extrabold text-center mb-1">ClassPilot.</h2>
+        <div className="flex justify-center items-center min-h-[85vh] p-4">
+            <div className="card bg-base-200 border border-base-300 rounded-xl w-full max-w-md p-6 shadow-xl">
+                <h2 className="text-2xl font-extrabold text-center mb-1 text-base-content">ClassPilot.</h2>
                 <p className="text-sm text-base-content/60 text-center mb-6">Sign in to your account</p>
 
                 <form onSubmit={handleLogin}>
@@ -94,23 +97,91 @@ const Login = () => {
                         {errors.password && <span className="text-red-400 text-xs mt-1">{errors.password}</span>}
                     </div>
 
-                    <button type="submit" className="btn btn-primary w-full">Sign In</button>
+                    <button type="submit" className="btn btn-primary w-full shadow-sm">Sign In</button>
                 </form>
 
-                {/* Demo Credentials */}
-                <div className="mt-6 p-3 bg-base-300 rounded-lg">
-                    <p className="text-xs font-semibold text-base-content/60 mb-2">Demo Credentials:</p>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div>
-                            <p className="font-medium text-pink-400">Professor</p>
-                            <p className="text-base-content/50">sarah@classpilot.com</p>
-                            <p className="text-base-content/50">admin123</p>
+                {/* Demo Credentials List */}
+                <div className="mt-6 p-3.5 bg-base-300 rounded-xl border border-base-content/10">
+                    <div className="flex justify-between items-center mb-2.5">
+                        <span className="text-[11px] font-bold text-base-content/70 uppercase tracking-wider">
+                            Demo Accounts
+                        </span>
+                        <div className="flex gap-1 bg-base-200 p-0.5 rounded-lg border border-base-content/10">
+                            <button
+                                type="button"
+                                className={`btn btn-xs border-none ${
+                                    demoTab === "admin" 
+                                        ? "bg-pink-600 text-white shadow-xs" 
+                                        : "btn-ghost text-base-content/70 hover:text-base-content"
+                                }`}
+                                onClick={() => setDemoTab("admin")}
+                            >
+                                <GraduationCap size={12}/> Admins ({admins.length})
+                            </button>
+                            <button
+                                type="button"
+                                className={`btn btn-xs border-none ${
+                                    demoTab === "student" 
+                                        ? "bg-green-600 text-white shadow-xs" 
+                                        : "btn-ghost text-base-content/70 hover:text-base-content"
+                                }`}
+                                onClick={() => setDemoTab("student")}
+                            >
+                                <Users size={12}/> Students ({students.length})
+                            </button>
                         </div>
-                        <div>
-                            <p className="font-medium text-green-400">Student</p>
-                            <p className="text-base-content/50">alice@student.com</p>
-                            <p className="text-base-content/50">student123</p>
-                        </div>
+                    </div>
+
+                    <p className="text-[11px] text-base-content/50 mb-2">
+                        Click any user below to auto-fill email & password:
+                    </p>
+
+                    {/* Scrollable List of Students / Admins */}
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
+                        {(demoTab === "admin" ? admins : students).map(u => (
+                            <div
+                                key={u.id}
+                                className={`flex justify-between items-center p-2 rounded-lg bg-base-200 hover:bg-base-100 transition-all cursor-pointer border ${
+                                    email === u.email 
+                                        ? demoTab === "admin" ? "border-pink-500/50 bg-pink-950/20" : "border-green-500/50 bg-green-950/20" 
+                                        : "border-base-content/5"
+                                } group`}
+                                onClick={() => {
+                                    setEmail(u.email)
+                                    setPassword(u.password)
+                                    setErrors({})
+                                    toast.success(`Selected ${u.name}`)
+                                }}
+                                title="Click to auto-fill credentials"
+                            >
+                                <div className="min-w-0 pr-2">
+                                    <div className="flex items-center gap-1.5">
+                                        <p className="text-xs font-semibold text-base-content truncate group-hover:text-primary">
+                                            {u.name}
+                                        </p>
+                                        {u.id === "student1" && (
+                                            <span className="badge badge-xs bg-purple-900/50 text-purple-300 border-purple-500/30">
+                                                Team Alpha Leader
+                                            </span>
+                                        )}
+                                        {u.id === "student3" && (
+                                            <span className="badge badge-xs bg-purple-900/50 text-purple-300 border-purple-500/30">
+                                                Team Beta Leader
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-[11px] text-base-content/60 truncate">
+                                        {u.email}
+                                    </p>
+                                </div>
+                                <div className="text-right shrink-0 flex items-center gap-1.5">
+                                    <span className="badge badge-xs badge-neutral text-[10px] font-mono">
+                                        {u.password}
+                                    </span>
+                                    <ArrowRight size={12} className="text-base-content/30 group-hover:text-primary group-hover:translate-x-0.5 transition-all"/>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
 
