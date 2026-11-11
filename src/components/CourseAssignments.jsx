@@ -1,7 +1,7 @@
 import { useContext, useState } from 'react'
 import { AuthContext } from '../utils/AuthContext'
 import users from "../utils/users"
-import { BookOpen, ChartNoAxesColumnDecreasing, CircleCheck, Clock, Plus, Search, ArrowLeft } from 'lucide-react'
+import { BookOpen, ChartNoAxesColumnDecreasing, CircleCheck, Clock, Plus, Search, ArrowLeft, ArrowUpDown } from 'lucide-react'
 import AdminAssignment from './AdminAssignment'
 import AssignmentForm from './AssignmentForm'
 import { useParams, useNavigate } from 'react-router'
@@ -15,6 +15,7 @@ const CourseAssignments = () => {
     const [editingAssignment, setEditingAssignment] = useState(null)
     const [searchQuery, setSearchQuery] = useState("")
     const [filterStatus, setFilterStatus] = useState("all")
+    const [sortBy, setSortBy] = useState("deadline-asc")
     
     const allUsers = [...users, ...registeredUsers]
     const course = courses.find(c => c.id === courseId)
@@ -34,33 +35,46 @@ const CourseAssignments = () => {
     const myAssignments = assignments.filter(a => a.createdBy === currentUserId && a.courseId === courseId)
     
     // Apply search & filter
-    let filteredAssignments = myAssignments
-    
-    if(searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      filteredAssignments = filteredAssignments.filter(a => 
-        a.title.toLowerCase().includes(q) || a.description.toLowerCase().includes(q)
-      )
-    }
+    let filteredAssignments = myAssignments.filter(a => {
+      const q = searchQuery.toLowerCase().trim()
+      const matchesSearch = !q || a.title.toLowerCase().includes(q) || a.description.toLowerCase().includes(q)
+      if (!matchesSearch) return false
 
-    if(filterStatus !== "all") {
-      filteredAssignments = filteredAssignments.filter(a => {
-        const assignedStudents = a.assignedTo || []
-        const submittedCount = assignedStudents.filter(
-          sid => a.submissions[sid]?.status === "submitted"
-        ).length
-        if(filterStatus === "complete") return submittedCount === assignedStudents.length && assignedStudents.length > 0
-        if(filterStatus === "in-progress") return submittedCount > 0 && submittedCount < assignedStudents.length
-        if(filterStatus === "pending") return submittedCount === 0
-        return true
-      })
-    }
+      const assignedStudents = a.assignedTo || []
+      const submittedCount = assignedStudents.filter(
+        sid => a.submissions?.[sid]?.status === "submitted"
+      ).length
+      const isOverdue = a.dueDate ? new Date(a.dueDate) < new Date() : false
+
+      if (filterStatus === "complete") return submittedCount === assignedStudents.length && assignedStudents.length > 0
+      if (filterStatus === "in-progress") return submittedCount > 0 && submittedCount < assignedStudents.length
+      if (filterStatus === "pending") return submittedCount === 0
+      if (filterStatus === "overdue") return isOverdue && submittedCount < assignedStudents.length
+      if (filterStatus === "individual") return a.submissionType === "individual"
+      if (filterStatus === "group") return a.submissionType === "group"
+
+      return true
+    })
+
+    // Sorting
+    filteredAssignments.sort((a, b) => {
+      if (sortBy === "deadline-asc") {
+        return new Date(a.dueDate || 0) - new Date(b.dueDate || 0)
+      }
+      if (sortBy === "deadline-desc") {
+        return new Date(b.dueDate || 0) - new Date(a.dueDate || 0)
+      }
+      if (sortBy === "title") {
+        return a.title.localeCompare(b.title)
+      }
+      return 0
+    })
 
     // Stats
     const totalAssignments = myAssignments.length
     const totalStudentAssignments = myAssignments.reduce((sum, a) => sum + (a.assignedTo?.length || 0), 0)
     const totalSubmissions = myAssignments.reduce((sum, a) => {
-      return sum + (a.assignedTo || []).filter(sid => a.submissions[sid]?.status === "submitted").length
+      return sum + (a.assignedTo || []).filter(sid => a.submissions?.[sid]?.status === "submitted").length
     }, 0)
     const overallRate = totalStudentAssignments === 0 ? 0 : Math.round((totalSubmissions / totalStudentAssignments) * 100)
 
@@ -130,17 +144,20 @@ const CourseAssignments = () => {
   return (
     <div className='p-4 m-2 sm:m-6 mb-20'>
       {/* Back Button & Header */}
-      <button className="btn btn-ghost btn-sm mb-4 text-base-content/60" onClick={() => navigate("/admin")}>
+      <button className="btn btn-ghost btn-sm mb-4 text-base-content/60 hover:text-base-content flex items-center gap-1.5" onClick={() => navigate("/admin")}>
         <ArrowLeft size={16}/> Back to Courses
       </button>
 
       <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4'>
         <div>
-          <h1 className='font-bold text-2xl'>{course.name}</h1>
-          <p className='text-sm text-base-content/60'>{course.code} • {course.semester}</p>
+          <div className="flex items-center gap-2">
+            <h1 className='font-bold text-2xl'>{course.name}</h1>
+            <span className="badge badge-sm badge-neutral">{course.code}</span>
+          </div>
+          <p className='text-sm text-base-content/60 mt-0.5'>{course.semester} • {course.enrolledStudents?.length || 0} enrolled students</p>
         </div>
         <button 
-          className='btn bg-pink-600 hover:bg-pink-700 text-white border-none btn-sm sm:btn-md'
+          className='btn bg-pink-600 hover:bg-pink-700 text-white border-none btn-sm sm:btn-md shadow-sm'
           onClick={() => { setEditingAssignment(null); setShowForm(true) }}
         >
           <Plus size={18}/> New Assignment
@@ -149,22 +166,22 @@ const CourseAssignments = () => {
 
       {/* Stats Cards */}
       <div className='grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8'>
-        <div className='card bg-base-200 p-4 rounded-xl'>
+        <div className='card bg-base-200 p-4 rounded-xl border border-base-content/5'>
           <BookOpen className='text-blue-400 mb-2' size={24}/>
           <h2 className='text-2xl font-bold'>{totalAssignments}</h2>
           <p className='text-sm text-base-content/60'>Assignments</p>
         </div>
-        <div className='card bg-base-200 p-4 rounded-xl'>
+        <div className='card bg-base-200 p-4 rounded-xl border border-base-content/5'>
           <CircleCheck className='text-green-400 mb-2' size={24}/>
           <h2 className='text-2xl font-bold'>{totalSubmissions}</h2>
           <p className='text-sm text-base-content/60'>Submissions</p>
         </div>
-        <div className='card bg-base-200 p-4 rounded-xl'>
+        <div className='card bg-base-200 p-4 rounded-xl border border-base-content/5'>
           <Clock className="text-yellow-400 mb-2" size={24}/>
           <h2 className='text-2xl font-bold'>{totalStudentAssignments - totalSubmissions}</h2>
           <p className='text-sm text-base-content/60'>Pending</p>
         </div>
-        <div className='card bg-base-200 p-4 rounded-xl'>
+        <div className='card bg-base-200 p-4 rounded-xl border border-base-content/5'>
           <ChartNoAxesColumnDecreasing className="text-purple-400 mb-2" size={24}/>
           <h2 className='text-2xl font-bold'>{overallRate}%</h2>
           <p className='text-sm text-base-content/60'>Completion</p>
@@ -181,39 +198,57 @@ const CourseAssignments = () => {
         />
       )}
 
-      {/* Search & Filter */}
+      {/* Search, Filter & Sort Bar */}
       <div className='flex flex-col sm:flex-row gap-3 mb-6'>
         <div className='relative flex-1'>
           <Search size={18} className='absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40'/>
           <input 
             type="text"
-            placeholder="Search assignments..."
+            placeholder="Search assignments by title or keyword..."
             className="input input-bordered w-full pl-10 bg-base-200"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <select 
-          className="select select-bordered bg-base-200 w-full sm:w-48"
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-        >
-          <option value="all">All Status</option>
-          <option value="complete">Fully Submitted</option>
-          <option value="in-progress">In Progress</option>
-          <option value="pending">No Submissions</option>
-        </select>
+        <div className="flex gap-2">
+          <select 
+            className="select select-bordered bg-base-200 text-xs sm:text-sm"
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+          >
+            <option value="all">All Status</option>
+            <option value="complete">Fully Submitted</option>
+            <option value="in-progress">In Progress</option>
+            <option value="pending">No Submissions</option>
+            <option value="overdue">Overdue</option>
+            <option value="individual">Individual Only</option>
+            <option value="group">Group Only</option>
+          </select>
+
+          <select
+            className="select select-bordered bg-base-200 text-xs sm:text-sm"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+          >
+            <option value="deadline-asc">Deadline (Soonest)</option>
+            <option value="deadline-desc">Deadline (Latest)</option>
+            <option value="title">Title (A-Z)</option>
+          </select>
+        </div>
       </div>
 
       {/* Assignments List */}
-      <h2 className='font-bold text-xl mb-4'>Assignments</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className='font-bold text-xl'>Course Assignments ({filteredAssignments.length})</h2>
+      </div>
+
       {filteredAssignments.length === 0 ? (
-        <div className='card bg-base-200 p-8 rounded-xl text-center'>
+        <div className='card bg-base-200 p-8 rounded-xl text-center border border-base-content/5'>
           <BookOpen className='mx-auto text-base-content/30 mb-3' size={48}/>
           <p className='text-base-content/60'>
             {myAssignments.length === 0 
-              ? "No assignments yet. Click 'New Assignment' to get started!"
-              : "No assignments match your search or filter."
+              ? "No assignments yet for this course. Click 'New Assignment' to create one!"
+              : "No assignments match your filter or search query."
             }
           </p>
         </div>
@@ -233,4 +268,3 @@ const CourseAssignments = () => {
 }
 
 export default CourseAssignments
-
