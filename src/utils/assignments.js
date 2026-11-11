@@ -98,16 +98,20 @@ const assignments = [
     },
     {
         id: "assignment7",
-        title: "Group Research Presentation",
-        description: "Research and present on a modern software engineering methodology.",
+        title: "Software Engineering Methodology Report",
+        description: "Research and report on modern software engineering methodologies and CI/CD pipelines.",
         dueDate: "2026-11-28T23:59",
         driveLink: "https://onedrive.live.com/se7",
         createdBy: "admin2",
         courseId: "course4",
-        submissionType: "group",
-        assignedGroups: ["group3"],
-        assignedTo: ["student1", "student2"],
-        submissions: {}
+        submissionType: "individual",
+        assignedTo: ["student1", "student2", "student3", "student4"],
+        submissions: {
+            student1: { status: "not_submitted", submittedAt: null },
+            student2: { status: "submitted", submittedAt: "2026-11-05T14:15:00" },
+            student3: { status: "not_submitted", submittedAt: null },
+            student4: { status: "not_submitted", submittedAt: null }
+        }
     },
     {
         id: "assignment8",

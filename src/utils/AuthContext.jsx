@@ -45,11 +45,13 @@ const loadInitialAssignments = () => {
         }
         const typeMap = {
             assignment6: "group",
-            assignment7: "group",
         }
 
         return parsed.map(a => {
             const defaultMatch = assignmentsData.find(d => d.id === a.id)
+            if (a.id === "assignment7") {
+                return defaultMatch || a
+            }
             const courseId = a.courseId || courseMap[a.id] || defaultMatch?.courseId || "course1"
             const submissionType = a.submissionType || typeMap[a.id] || defaultMatch?.submissionType || "individual"
             const isGroup = submissionType === "group"
@@ -100,11 +102,12 @@ const loadInitialGroups = () => {
         if (!saved) return groupsData
         const parsed = JSON.parse(saved)
         if (!Array.isArray(parsed) || parsed.length === 0) return groupsData
-        // Ensure group3 in course4 exists
-        if (!parsed.some(g => g.id === "group3")) {
+        // Filter out removed groups (Team Beta, Team Delta)
+        const filtered = parsed.filter(g => g.id !== "group2" && g.id !== "group3" && g.name !== "Team Beta" && g.name !== "Team Delta")
+        if (filtered.length === 0 || !filtered.some(g => g.id === "group1")) {
             return groupsData
         }
-        return parsed
+        return filtered
     } catch {
         return groupsData
     }

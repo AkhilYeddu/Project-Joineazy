@@ -164,11 +164,6 @@ const Login = () => {
                                                 Team Alpha Leader
                                             </span>
                                         )}
-                                        {u.id === "student3" && (
-                                            <span className="badge badge-xs bg-purple-900/50 text-purple-300 border-purple-500/30">
-                                                Team Beta Leader
-                                            </span>
-                                        )}
                                     </div>
                                     <p className="text-[11px] text-base-content/60 truncate">
                                         {u.email}
