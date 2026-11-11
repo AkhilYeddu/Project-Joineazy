@@ -25,6 +25,76 @@ const parseToken = (token) => {
     }
 }
 
+// Automatic backfill and migration for legacy localStorage assignments
+const loadInitialAssignments = () => {
+    try {
+        const saved = localStorage.getItem("assignments")
+        if (!saved) return assignmentsData
+        const parsed = JSON.parse(saved)
+        if (!Array.isArray(parsed) || parsed.length === 0) return assignmentsData
+
+        // Check if any assignment lacks courseId or submissionType (Round 1 legacy state)
+        const needsRepair = parsed.some(a => !a.courseId || !a.submissionType)
+        if (!needsRepair) return parsed
+
+        const courseMap = {
+            assignment1: "course1",
+            assignment2: "course1",
+            assignment3: "course2",
+            assignment4: "course3",
+            assignment5: "course2",
+            assignment6: "course1",
+            assignment7: "course4",
+            assignment8: "course3",
+        }
+        const typeMap = {
+            assignment6: "group",
+            assignment7: "group",
+        }
+
+        return parsed.map(a => {
+            const defaultMatch = assignmentsData.find(d => d.id === a.id)
+            const courseId = a.courseId || courseMap[a.id] || defaultMatch?.courseId || "course1"
+            const submissionType = a.submissionType || typeMap[a.id] || defaultMatch?.submissionType || "individual"
+            const dueDate = a.dueDate && !a.dueDate.includes("T") ? `${a.dueDate}T23:59` : (a.dueDate || defaultMatch?.dueDate)
+            const driveLink = a.driveLink || defaultMatch?.driveLink || ""
+            return {
+                ...defaultMatch,
+                ...a,
+                courseId,
+                submissionType,
+                dueDate,
+                driveLink,
+                submissions: a.submissions || defaultMatch?.submissions || {}
+            }
+        })
+    } catch {
+        return assignmentsData
+    }
+}
+
+const loadInitialCourses = () => {
+    try {
+        const saved = localStorage.getItem("courses")
+        if (!saved) return coursesData
+        const parsed = JSON.parse(saved)
+        return Array.isArray(parsed) && parsed.length > 0 ? parsed : coursesData
+    } catch {
+        return coursesData
+    }
+}
+
+const loadInitialGroups = () => {
+    try {
+        const saved = localStorage.getItem("groups")
+        if (!saved) return groupsData
+        const parsed = JSON.parse(saved)
+        return Array.isArray(parsed) && parsed.length > 0 ? parsed : groupsData
+    } catch {
+        return groupsData
+    }
+}
+
 export const AuthProvider = ({children})=> {
     const [token, setToken] = useState(()=> localStorage.getItem("authToken") || null)
     const [currentUserId, setCurrentUserIdState] = useState(()=> {
@@ -35,18 +105,9 @@ export const AuthProvider = ({children})=> {
         const saved = localStorage.getItem("registeredUsers")
         return saved ? JSON.parse(saved) : []
     })
-    const [assignments, setAssignments] = useState(()=>{
-        const saved = localStorage.getItem("assignments")
-        return saved ? JSON.parse(saved) : assignmentsData
-    })
-    const [courses, setCourses] = useState(()=>{
-        const saved = localStorage.getItem("courses")
-        return saved ? JSON.parse(saved) : coursesData
-    })
-    const [groups, setGroups] = useState(()=>{
-        const saved = localStorage.getItem("groups")
-        return saved ? JSON.parse(saved) : groupsData
-    })
+    const [assignments, setAssignments] = useState(loadInitialAssignments)
+    const [courses, setCourses] = useState(loadInitialCourses)
+    const [groups, setGroups] = useState(loadInitialGroups)
 
     // Login: generate token and set userId
     const login = (userId) => {

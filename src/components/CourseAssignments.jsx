@@ -10,7 +10,7 @@ import toast from 'react-hot-toast'
 const CourseAssignments = () => {
     const { courseId } = useParams()
     const navigate = useNavigate()
-    const {currentUserId, assignments, setAssignments, courses, registeredUsers} = useContext(AuthContext)
+    const {currentUserId, assignments, setAssignments, courses, groups, registeredUsers} = useContext(AuthContext)
     const [showForm, setShowForm] = useState(false)
     const [editingAssignment, setEditingAssignment] = useState(null)
     const [searchQuery, setSearchQuery] = useState("")
@@ -20,6 +20,7 @@ const CourseAssignments = () => {
     const allUsers = [...users, ...registeredUsers]
     const course = courses.find(c => c.id === courseId)
     const students = allUsers.filter(u => u.role === "student" && course?.enrolledStudents?.includes(u.id))
+    const courseGroups = groups.filter(g => g.courseId === courseId)
 
     if (!course) {
         return (
@@ -31,8 +32,8 @@ const CourseAssignments = () => {
         )
     }
 
-    // Only show assignments for this course created by this admin
-    const myAssignments = assignments.filter(a => a.createdBy === currentUserId && a.courseId === courseId)
+    // All assignments for this course
+    const myAssignments = assignments.filter(a => a.courseId === courseId)
     
     // Apply search & filter
     let filteredAssignments = myAssignments.filter(a => {
@@ -70,13 +71,34 @@ const CourseAssignments = () => {
       return 0
     })
 
-    // Stats
+    // Calculate metrics identical to AdminDb course card
+    let totalExpectedSubs = 0
+    let totalActualSubs = 0
+    let totalRateSum = 0
+
+    myAssignments.forEach(a => {
+      if (a.submissionType === "group") {
+        const groupCount = courseGroups.length || 1
+        const submittedGroups = courseGroups.filter(
+          g => a.submissions?.[g.id]?.status === "submitted" || a.submissions?.[g.leaderId]?.status === "submitted"
+        ).length
+        totalExpectedSubs += groupCount
+        totalActualSubs += submittedGroups
+        totalRateSum += (submittedGroups / groupCount) * 100
+      } else {
+        const studentCount = (a.assignedTo || []).length
+        const submittedStudents = (a.assignedTo || []).filter(
+          sid => a.submissions?.[sid]?.status === "submitted"
+        ).length
+        totalExpectedSubs += studentCount
+        totalActualSubs += submittedStudents
+        totalRateSum += studentCount > 0 ? (submittedStudents / studentCount) * 100 : 0
+      }
+    })
+
     const totalAssignments = myAssignments.length
-    const totalStudentAssignments = myAssignments.reduce((sum, a) => sum + (a.assignedTo?.length || 0), 0)
-    const totalSubmissions = myAssignments.reduce((sum, a) => {
-      return sum + (a.assignedTo || []).filter(sid => a.submissions?.[sid]?.status === "submitted").length
-    }, 0)
-    const overallRate = totalStudentAssignments === 0 ? 0 : Math.round((totalSubmissions / totalStudentAssignments) * 100)
+    const overallRate = totalAssignments > 0 ? Math.round(totalRateSum / totalAssignments) : 0
+    const pendingSubs = Math.max(0, totalExpectedSubs - totalActualSubs)
 
     const handleCreateAssignment = (newAssignment) => {
       const assignment = {
@@ -169,22 +191,31 @@ const CourseAssignments = () => {
         <div className='card bg-base-200 p-4 rounded-xl border border-base-content/5'>
           <BookOpen className='text-blue-400 mb-2' size={24}/>
           <h2 className='text-2xl font-bold'>{totalAssignments}</h2>
-          <p className='text-sm text-base-content/60'>Assignments</p>
+          <p className='text-sm text-base-content/60'>Course Assignments</p>
+          <span className="text-xs text-base-content/40 mt-0.5">
+            {myAssignments.filter(a => a.submissionType === "group").length} Group • {myAssignments.filter(a => a.submissionType !== "group").length} Individual
+          </span>
         </div>
+
         <div className='card bg-base-200 p-4 rounded-xl border border-base-content/5'>
           <CircleCheck className='text-green-400 mb-2' size={24}/>
-          <h2 className='text-2xl font-bold'>{totalSubmissions}</h2>
-          <p className='text-sm text-base-content/60'>Submissions</p>
+          <h2 className='text-2xl font-bold'>{totalActualSubs}</h2>
+          <p className='text-sm text-base-content/60'>Submissions Received</p>
+          <span className="text-xs text-base-content/40 mt-0.5">Out of {totalExpectedSubs} expected</span>
         </div>
+
         <div className='card bg-base-200 p-4 rounded-xl border border-base-content/5'>
           <Clock className="text-yellow-400 mb-2" size={24}/>
-          <h2 className='text-2xl font-bold'>{totalStudentAssignments - totalSubmissions}</h2>
-          <p className='text-sm text-base-content/60'>Pending</p>
+          <h2 className='text-2xl font-bold'>{pendingSubs}</h2>
+          <p className='text-sm text-base-content/60'>Pending Submissions</p>
+          <span className="text-xs text-base-content/40 mt-0.5">Awaiting completion</span>
         </div>
+
         <div className='card bg-base-200 p-4 rounded-xl border border-base-content/5'>
           <ChartNoAxesColumnDecreasing className="text-purple-400 mb-2" size={24}/>
           <h2 className='text-2xl font-bold'>{overallRate}%</h2>
-          <p className='text-sm text-base-content/60'>Completion</p>
+          <p className='text-sm text-base-content/60'>Class Completion</p>
+          <span className="text-xs text-base-content/40 mt-0.5">Average across assignments</span>
         </div>
       </div>
 

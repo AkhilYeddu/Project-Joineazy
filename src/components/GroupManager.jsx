@@ -288,3 +288,4 @@ const GroupManager = ({ courseId, isOpen, onClose }) => {
 }
 
 export default GroupManager
+
