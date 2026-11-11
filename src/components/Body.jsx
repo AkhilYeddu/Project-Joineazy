@@ -6,16 +6,18 @@ import { AuthContext } from "../utils/AuthContext"
 import users from "../utils/users"
 
 export const Body = () => {
-    const {currentUserId} = useContext(AuthContext)
+    const {currentUserId, registeredUsers} = useContext(AuthContext)
     const navigate = useNavigate()
     const location = useLocation()
 
+    const allUsers = [...users, ...registeredUsers]
+    const isAuthPage = location.pathname === "/login" || location.pathname === "/register"
+
     useEffect(()=>{
-        if(!currentUserId){
+        if(!currentUserId && !isAuthPage){
             navigate("/login")
-        } else if (location.pathname === "/") {
-            // If on root, redirect to appropriate dashboard
-            const user = users.find(u => u.id === currentUserId)
+        } else if (currentUserId && (location.pathname === "/" || isAuthPage)) {
+            const user = allUsers.find(u => u.id === currentUserId)
             if(user?.role === "admin") navigate("/admin")
             else if(user?.role === "student") navigate("/student")
         }
@@ -23,11 +25,11 @@ export const Body = () => {
    
   return (
     <div className="min-h-screen flex flex-col">   
-        <Header></Header>
+        {!isAuthPage && <Header/>}
         <div className="flex-1">
-          <Outlet></Outlet>
+          <Outlet/>
         </div>
-        <Footer></Footer>
+        <Footer/>
     </div>
     
   )

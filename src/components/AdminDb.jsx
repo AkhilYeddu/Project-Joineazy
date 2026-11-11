@@ -1,19 +1,15 @@
-import { useContext, useState } from 'react'
+import { useContext } from 'react'
 import { AuthContext } from '../utils/AuthContext'
 import users from "../utils/users"
-import { BookOpen, ChartNoAxesColumnDecreasing, CircleCheck, Clock, Plus, Search } from 'lucide-react'
-import AdminAssignment from './AdminAssignment'
-import AssignmentForm from './AssignmentForm'
+import { BookOpen, Users, ChartNoAxesColumnDecreasing, GraduationCap } from 'lucide-react'
+import { useNavigate } from 'react-router'
 
 const AdminDb = () => {
-    const {currentUserId, assignments, setAssignments} = useContext(AuthContext)
-    const [showForm, setShowForm] = useState(false)
-    const [editingAssignment, setEditingAssignment] = useState(null)
-    const [searchQuery, setSearchQuery] = useState("")
-    const [filterStatus, setFilterStatus] = useState("all")
+    const {currentUserId, assignments, courses, registeredUsers} = useContext(AuthContext)
+    const navigate = useNavigate()
     
-    const user = users.find(user => user.id === currentUserId)
-    const students = users.filter(u => u.role === "student")
+    const allUsers = [...users, ...registeredUsers]
+    const user = allUsers.find(u => u.id === currentUserId)
 
     if (!user) {
         return (
@@ -25,33 +21,13 @@ const AdminDb = () => {
 
     const {name} = user
 
-    // Only show assignments created by this admin
+    // Courses taught by this professor
+    const myCourses = courses.filter(c => c.professorId === currentUserId)
+
+    // Overall stats
+    const totalCourses = myCourses.length
+    const totalStudents = new Set(myCourses.flatMap(c => c.enrolledStudents || [])).size
     const myAssignments = assignments.filter(a => a.createdBy === currentUserId)
-    
-    // Apply search & filter
-    let filteredAssignments = myAssignments
-    
-    if(searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      filteredAssignments = filteredAssignments.filter(a => 
-        a.title.toLowerCase().includes(q) || a.description.toLowerCase().includes(q)
-      )
-    }
-
-    if(filterStatus !== "all") {
-      filteredAssignments = filteredAssignments.filter(a => {
-        const assignedStudents = a.assignedTo || []
-        const submittedCount = assignedStudents.filter(
-          sid => a.submissions[sid]?.status === "submitted"
-        ).length
-        if(filterStatus === "complete") return submittedCount === assignedStudents.length && assignedStudents.length > 0
-        if(filterStatus === "in-progress") return submittedCount > 0 && submittedCount < assignedStudents.length
-        if(filterStatus === "pending") return submittedCount === 0
-        return true
-      })
-    }
-
-    // Stats
     const totalAssignments = myAssignments.length
     const totalStudentAssignments = myAssignments.reduce((sum, a) => sum + (a.assignedTo?.length || 0), 0)
     const totalSubmissions = myAssignments.reduce((sum, a) => {
@@ -59,162 +35,90 @@ const AdminDb = () => {
     }, 0)
     const overallRate = totalStudentAssignments === 0 ? 0 : Math.round((totalSubmissions / totalStudentAssignments) * 100)
 
-    const handleCreateAssignment = (newAssignment) => {
-      const assignment = {
-        ...newAssignment,
-        id: `assignment_${Date.now()}`,
-        createdBy: currentUserId,
-        submissions: {}
-      }
-      // Initialize submissions for all assigned students
-      newAssignment.assignedTo.forEach(sid => {
-        assignment.submissions[sid] = { status: "not_submitted", submittedAt: null }
-      })
-      setAssignments(prev => [...prev, assignment])
-      setShowForm(false)
-    }
-
-    const handleEditAssignment = (updatedAssignment) => {
-      setAssignments(prev => prev.map(a => {
-        if(a.id === updatedAssignment.id) {
-          const newSubmissions = {...a.submissions}
-          // Add submissions entries for newly assigned students
-          updatedAssignment.assignedTo.forEach(sid => {
-            if(!newSubmissions[sid]) {
-              newSubmissions[sid] = { status: "not_submitted", submittedAt: null }
-            }
-          })
-          // Remove entries for unassigned students
-          Object.keys(newSubmissions).forEach(sid => {
-            if(!updatedAssignment.assignedTo.includes(sid)) {
-              delete newSubmissions[sid]
-            }
-          })
-          return {
-            ...a,
-            title: updatedAssignment.title,
-            description: updatedAssignment.description,
-            dueDate: updatedAssignment.dueDate,
-            driveLink: updatedAssignment.driveLink,
-            assignedTo: updatedAssignment.assignedTo,
-            submissions: newSubmissions
-          }
-        }
-        return a
-      }))
-      setEditingAssignment(null)
-      setShowForm(false)
-    }
-
-    const handleDeleteAssignment = (assignmentId) => {
-      setAssignments(prev => prev.filter(a => a.id !== assignmentId))
-    }
-
-    const handleEditClick = (assignment) => {
-      setEditingAssignment(assignment)
-      setShowForm(true)
-    }
-
-    const handleCancelForm = () => {
-      setShowForm(false)
-      setEditingAssignment(null)
-    }
-
   return (
     <div className='p-4 m-2 sm:m-6 mb-20'>
-      <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4'>
-        <h1 className='font-bold text-2xl'>Hello, {name}! 👋🏻</h1>
-        <button 
-          className='btn bg-pink-600 hover:bg-pink-700 text-white border-none btn-sm sm:btn-md'
-          onClick={() => { setEditingAssignment(null); setShowForm(true) }}
-        >
-          <Plus size={18}/> New Assignment
-        </button>
-      </div>
+      <h1 className='font-bold text-2xl mb-6'>Hello, {name}! 👋🏻</h1>
 
       {/* Stats Cards */}
       <div className='grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8'>
         <div className='card bg-base-200 p-4 rounded-xl'>
-          <BookOpen className='text-blue-400 mb-2' size={24}/>
+          <GraduationCap className='text-blue-400 mb-2' size={24}/>
+          <h2 className='text-2xl font-bold'>{totalCourses}</h2>
+          <p className='text-sm text-base-content/60'>Courses</p>
+        </div>
+        <div className='card bg-base-200 p-4 rounded-xl'>
+          <Users className='text-green-400 mb-2' size={24}/>
+          <h2 className='text-2xl font-bold'>{totalStudents}</h2>
+          <p className='text-sm text-base-content/60'>Students</p>
+        </div>
+        <div className='card bg-base-200 p-4 rounded-xl'>
+          <BookOpen className="text-yellow-400 mb-2" size={24}/>
           <h2 className='text-2xl font-bold'>{totalAssignments}</h2>
-          <p className='text-sm text-base-content/60'>Assignments Created</p>
+          <p className='text-sm text-base-content/60'>Assignments</p>
         </div>
-
-        <div className='card bg-base-200 p-4 rounded-xl'>
-          <CircleCheck className='text-green-400 mb-2' size={24}/>
-          <h2 className='text-2xl font-bold'>{totalSubmissions}</h2>
-          <p className='text-sm text-base-content/60'>Submissions Received</p>
-        </div>
-
-        <div className='card bg-base-200 p-4 rounded-xl'>
-          <Clock className="text-yellow-400 mb-2" size={24}/>
-          <h2 className='text-2xl font-bold'>{totalStudentAssignments - totalSubmissions}</h2>
-          <p className='text-sm text-base-content/60'>Pending Reviews</p>
-        </div>
-
         <div className='card bg-base-200 p-4 rounded-xl'>
           <ChartNoAxesColumnDecreasing className="text-purple-400 mb-2" size={24}/>
           <h2 className='text-2xl font-bold'>{overallRate}%</h2>
-          <p className='text-sm text-base-content/60'>Completion Rate</p>
+          <p className='text-sm text-base-content/60'>Completion</p>
         </div>
       </div>
 
-      {/* Assignment Form Modal */}
-      {showForm && (
-        <AssignmentForm 
-          students={students}
-          assignment={editingAssignment}
-          onSubmit={editingAssignment ? handleEditAssignment : handleCreateAssignment}
-          onCancel={handleCancelForm}
-        />
-      )}
-
-      {/* Search & Filter */}
-      <div className='flex flex-col sm:flex-row gap-3 mb-6'>
-        <div className='relative flex-1'>
-          <Search size={18} className='absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40'/>
-          <input 
-            type="text"
-            placeholder="Search assignments..."
-            className="input input-bordered w-full pl-10 bg-base-200"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-        <select 
-          className="select select-bordered bg-base-200 w-full sm:w-48"
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-        >
-          <option value="all">All Status</option>
-          <option value="complete">Fully Submitted</option>
-          <option value="in-progress">In Progress</option>
-          <option value="pending">No Submissions</option>
-        </select>
-      </div>
-
-      {/* Assignments List */}
-      <h2 className='font-bold text-2xl mb-4'>My Assignments</h2>
-      {filteredAssignments.length === 0 ? (
+      {/* Courses Grid */}
+      <h2 className='font-bold text-2xl mb-4'>My Courses</h2>
+      {myCourses.length === 0 ? (
         <div className='card bg-base-200 p-8 rounded-xl text-center'>
-          <BookOpen className='mx-auto text-base-content/30 mb-3' size={48}/>
-          <p className='text-base-content/60'>
-            {myAssignments.length === 0 
-              ? "You haven't created any assignments yet. Click 'New Assignment' to get started!"
-              : "No assignments match your search or filter."
-            }
-          </p>
+          <GraduationCap className='mx-auto text-base-content/30 mb-3' size={48}/>
+          <p className='text-base-content/60'>No courses assigned yet.</p>
         </div>
       ) : (
-        filteredAssignments.map(assignment => (
-          <AdminAssignment 
-            key={assignment.id}
-            assignment={assignment}
-            students={students}
-            onEdit={handleEditClick}
-            onDelete={handleDeleteAssignment}
-          />
-        ))
+        <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'>
+          {myCourses.map(course => {
+            const courseAssignments = assignments.filter(a => a.courseId === course.id && a.createdBy === currentUserId)
+            const courseSubmissions = courseAssignments.reduce((sum, a) => {
+              return sum + (a.assignedTo || []).filter(sid => a.submissions[sid]?.status === "submitted").length
+            }, 0)
+            const courseTotalSubs = courseAssignments.reduce((sum, a) => sum + (a.assignedTo?.length || 0), 0)
+            const courseRate = courseTotalSubs === 0 ? 0 : Math.round((courseSubmissions / courseTotalSubs) * 100)
+
+            return (
+              <div 
+                key={course.id}
+                className="card bg-base-300 border border-base-content/10 rounded-xl hover:border-pink-600/50 transition-all cursor-pointer hover:shadow-lg"
+                onClick={() => navigate(`/admin/course/${course.id}`)}
+              >
+                <div className={`h-2 rounded-t-xl ${course.color}`}></div>
+                <div className="p-5">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <h3 className="font-bold text-lg">{course.name}</h3>
+                      <p className="text-xs text-base-content/50">{course.code} • {course.semester}</p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-base-content/60 mb-4 line-clamp-2">{course.description}</p>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="flex items-center gap-1 text-base-content/50">
+                      <Users size={14}/> {course.enrolledStudents?.length || 0} students
+                    </span>
+                    <span className="flex items-center gap-1 text-base-content/50">
+                      <BookOpen size={14}/> {courseAssignments.length} assignments
+                    </span>
+                  </div>
+                  <div className="mt-3">
+                    <div className="flex justify-between text-xs text-base-content/50 mb-1">
+                      <span>Completion</span>
+                      <span>{courseRate}%</span>
+                    </div>
+                    <progress 
+                      className={`progress w-full ${courseRate === 100 ? "progress-success" : courseRate > 0 ? "progress-warning" : "progress-error"}`} 
+                      value={courseRate} 
+                      max="100"
+                    ></progress>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       )}
     </div>
   )

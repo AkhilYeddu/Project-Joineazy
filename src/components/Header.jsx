@@ -3,14 +3,17 @@ import { AuthContext } from "../utils/AuthContext"
 import { useNavigate } from "react-router"
 import users from "../utils/users"
 import { LogOut, User } from "lucide-react"
+import toast from "react-hot-toast"
 
 const Header = () => {
-     const {currentUserId, setCurrentUserId} = useContext(AuthContext)
+     const {currentUserId, logout, registeredUsers} = useContext(AuthContext)
      const navigate = useNavigate()
-     const user = users.find(u => u.id === currentUserId)
+     const allUsers = [...users, ...registeredUsers]
+     const user = allUsers.find(u => u.id === currentUserId)
      
   const handleLogout = ()=>{
-    setCurrentUserId(null)
+    logout()
+    toast.success("Logged out successfully")
     navigate("/login")
   }
 
@@ -26,7 +29,7 @@ const Header = () => {
         <User size={18} className="text-base-content/60"/>
         <span className="text-sm font-medium hidden sm:inline">{user.name}</span>
         <span className={`badge badge-sm ${user.role === "admin" ? "bg-pink-600 text-white" : "bg-green-600 text-white"}`}>
-          {user.role}
+          {user.role === "admin" ? "professor" : "student"}
         </span>
       </div>
     )}
